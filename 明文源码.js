@@ -30,9 +30,8 @@ let addressescsv = [];
 let DLS = 8;
 let remarkIndex = 1;//CSV备注所在列偏移量
 let FileName = atob('ZWRnZXR1bm5lbA==');
-let BotToken; // Telegram 机器人 Token
-let ChatID;   // Telegram 聊天 ID
-let WXWorkWebhook; // 企业微信机器人 Webhook URL
+let BotToken;
+let ChatID;
 let proxyhosts = [];
 let proxyhostsURL = '';
 let RproxyIP = 'false';
@@ -52,15 +51,15 @@ export default {
 			const UA = request.headers.get('User-Agent') || 'null';
 			const userAgent = UA.toLowerCase();
 			userID = env.UUID || env.uuid || env.PASSWORD || env.pswd || userID;
-			if (env.KEY || env.TOKEN || (userID && !isValidUUID(userID))) {
-				动态UUID = env.KEY || env.TOKEN || userID;
-				有效时间 = Number(env.TIME) || 有效时间;
-				更新时间 = Number(env.UPTIME) || 更新时间;
-				const userIDs = await 生成动态UUID(动态UUID);
-				userID = userIDs[0];
-				userIDLow = userIDs[1];
-				userIDTime = userIDs[2];
-			}
+			// 修复后的代码（替换原条件判断部分）
+			if (env.KEY || env.TOKEN || userID) {  // 移除对userID是否为UUID的判断
+    		 动态UUID = env.KEY || env.TOKEN || userID;  // 确保动态UUID始终有值
+    		 有效时间 = Number(env.TIME) || 有效时间;
+    		 更新时间 = Number(env.UPTIME) || 更新时间;
+    		 const userIDs = await 生成动态UUID(动态UUID);
+    		 userID = userIDs[0];
+    		 userIDLow = userIDs[1];
+}
 
 			if (!userID) {
 				return new Response('请设置你的UUID变量，或尝试重试部署，检查变量是否生效？', {
@@ -122,7 +121,6 @@ export default {
 				remarkIndex = Number(env.CSVREMARK) || remarkIndex;
 				BotToken = env.TGTOKEN || BotToken;
 				ChatID = env.TGID || ChatID;
-				WXWorkWebhook = env.WXWORK_WEBHOOK || WXWorkWebhook;
 				FileName = env.SUBNAME || FileName;
 				subEmoji = env.SUBEMOJI || env.EMOJI || subEmoji;
 				if (subEmoji == '0') subEmoji = 'false';
@@ -1853,60 +1851,30 @@ async function 整理(内容) {
 }
 
 async function sendMessage(type, ip, add_data = "") {
-  // 发送Telegram通知
-  if (BotToken && ChatID) {
-    try {
-      let msg = "";
-      const response = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`);
-      if (response.ok) {
-        const ipInfo = await response.json();
-        msg = `${type}\nIP: ${ip}\n国家: ${ipInfo.country}\n<tg-spoiler>城市: ${ipInfo.city}\n组织: ${ipInfo.org}\nASN: ${ipInfo.as}\n${add_data}`;
-      } else {
-        msg = `${type}\nIP: ${ip}\n<tg-spoiler>${add_data}`;
-      }
+	if (!BotToken || !ChatID) return;
 
-      const url = `https://api.telegram.org/bot${BotToken}/sendMessage?chat_id=${ChatID}&parse_mode=HTML&text=${encodeURIComponent(msg)}`;
-      await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Accept': 'text/html,application/xhtml+xml,application/xml;',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'User-Agent': 'Mozilla/5.0 Chrome/90.0.4430.72'
-        }
-      });
-    } catch (error) {
-      console.error('Error sending Telegram message:', error);
-    }
-  }
+	try {
+		let msg = "";
+		const response = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`);
+		if (response.ok) {
+			const ipInfo = await response.json();
+			msg = `${type}\nIP: ${ip}\n国家: ${ipInfo.country}\n<tg-spoiler>城市: ${ipInfo.city}\n组织: ${ipInfo.org}\nASN: ${ipInfo.as}\n${add_data}`;
+		} else {
+			msg = `${type}\nIP: ${ip}\n<tg-spoiler>${add_data}`;
+		}
 
-  // 发送企业微信机器人通知
-  if (WXWorkWebhook) {
-    try {
-      let msg = "";
-      const response = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`);
-      if (response.ok) {
-        const ipInfo = await response.json();
-        msg = `${type}\nIP: ${ip}\n国家: ${ipInfo.country}\n城市: ${ipInfo.city}\n组织: ${ipInfo.org}\nASN: ${ipInfo.as}\n${add_data}`;
-      } else {
-        msg = `${type}\nIP: ${ip}\n${add_data}`;
-      }
-
-      await fetch(WXWorkWebhook, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          msgtype: "text",
-          text: {
-            content: msg
-          }
-        })
-      });
-    } catch (error) {
-      console.error('Error sending WeCom message:', error);
-    }
-  }
+		const url = `https://api.telegram.org/bot${BotToken}/sendMessage?chat_id=${ChatID}&parse_mode=HTML&text=${encodeURIComponent(msg)}`;
+		return fetch(url, {
+			method: 'GET',
+			headers: {
+				'Accept': 'text/html,application/xhtml+xml,application/xml;',
+				'Accept-Encoding': 'gzip, deflate, br',
+				'User-Agent': 'Mozilla/5.0 Chrome/90.0.4430.72'
+			}
+		});
+	} catch (error) {
+		console.error('Error sending message:', error);
+	}
 }
 
 function isValidIPv4(address) {
@@ -1914,40 +1882,39 @@ function isValidIPv4(address) {
 	return ipv4Regex.test(address);
 }
 
-async function 生成动态UUID(密钥) {
-  const 时区偏移 = 8; // 北京时间相对于UTC的时区偏移+8小时
-  const 起始日期 = new Date(2007, 6, 7, 更新时间, 0, 0); // 固定起始日期为2007年7月7日的凌晨3点
-  const 一周的毫秒数 = 1000 * 60 * 60 * 24 * 有效时间;
+function 生成动态UUID(密钥) {
+	const 时区偏移 = 8; // 北京时间相对于UTC的时区偏移+8小时
+	const 起始日期 = new Date(2007, 6, 7, 更新时间, 0, 0); // 固定起始日期为2007年7月7日的凌晨3点
+	const 一周的毫秒数 = 1000 * 60 * 60 * 24 * 有效时间;
 
-  function 获取当前周数() {
-    const 现在 = new Date();
-    const 调整后的现在 = new Date(现在.getTime() + 时区偏移 * 60 * 60 * 1000);
-    const 时间差 = Number(调整后的现在) - Number(起始日期);
-    return Math.ceil(时间差 / 一周的毫秒数);
-  }
+	function 获取当前周数() {
+		const 现在 = new Date();
+		const 调整后的现在 = new Date(现在.getTime() + 时区偏移 * 60 * 60 * 1000);
+		const 时间差 = Number(调整后的现在) - Number(起始日期);
+		return Math.ceil(时间差 / 一周的毫秒数);
+	}
 
-  async function 生成UUID(基础字符串) {
-    const 哈希缓冲区 = new TextEncoder().encode(基础字符串);
-    const 哈希 = await crypto.subtle.digest('SHA-256', 哈希缓冲区);
-    const 哈希数组 = Array.from(new Uint8Array(哈希));
-    const 十六进制哈希 = 哈希数组.map(b => b.toString(16).padStart(2, '0')).join('');
-    
-    // 标准UUIDv4格式
-    return `${十六进制哈希.substr(0, 8)}-${十六进制哈希.substr(8, 4)}-4${十六进制哈希.substr(13, 3)}-${(parseInt(十六进制哈希.substr(16, 2), 16) & 0x3f | 0x80).toString(16)}${十六进制哈希.substr(18, 2)}-${十六进制哈希.substr(20, 12)}`;
-  }
+	function 生成UUID(基础字符串) {
+		const 哈希缓冲区 = new TextEncoder().encode(基础字符串);
+		return crypto.subtle.digest('SHA-256', 哈希缓冲区).then((哈希) => {
+			const 哈希数组 = Array.from(new Uint8Array(哈希));
+			const 十六进制哈希 = 哈希数组.map(b => b.toString(16).padStart(2, '0')).join('');
+			return `${十六进制哈希.substr(0, 8)}-${十六进制哈希.substr(8, 4)}-4${十六进制哈希.substr(13, 3)}-${(parseInt(十六进制哈希.substr(16, 2), 16) & 0x3f | 0x80).toString(16)}${十六进制哈希.substr(18, 2)}-${十六进制哈希.substr(20, 12)}`;
+		});
+	}
 
-  const 当前周数 = 获取当前周数(); // 获取当前周数
-  const 结束时间 = new Date(起始日期.getTime() + 当前周数 * 一周的毫秒数);
+	const 当前周数 = 获取当前周数(); // 获取当前周数
+	const 结束时间 = new Date(起始日期.getTime() + 当前周数 * 一周的毫秒数);
 
-  // 生成两个 UUID
-  const 当前UUID = await 生成UUID(密钥 + 当前周数);
-  const 上一个UUID = await 生成UUID(密钥 + (当前周数 - 1));
+	// 生成两个 UUID
+	const 当前UUIDPromise = 生成UUID(密钥 + 当前周数);
+	const 上一个UUIDPromise = 生成UUID(密钥 + (当前周数 - 1));
 
-  // 格式化到期时间
-  const 到期时间UTC = new Date(结束时间.getTime() - 时区偏移 * 60 * 60 * 1000); // UTC时间
-  const 到期时间字符串 = `到期时间(UTC): ${到期时间UTC.toISOString().slice(0, 19).replace('T', ' ')} (UTC+8): ${结束时间.toISOString().slice(0, 19).replace('T', ' ')}\n`;
+	// 格式化到期时间
+	const 到期时间UTC = new Date(结束时间.getTime() - 时区偏移 * 60 * 60 * 1000); // UTC时间
+	const 到期时间字符串 = `到期时间(UTC): ${到期时间UTC.toISOString().slice(0, 19).replace('T', ' ')} (UTC+8): ${结束时间.toISOString().slice(0, 19).replace('T', ' ')}\n`;
 
-  return [当前UUID, 上一个UUID, 到期时间字符串];
+	return Promise.all([当前UUIDPromise, 上一个UUIDPromise, 到期时间字符串]);
 }
 
 async function 迁移地址列表(env, txt = 'ADD.txt') {
