@@ -30,8 +30,9 @@ let addressescsv = [];
 let DLS = 8;
 let remarkIndex = 1;//CSV备注所在列偏移量
 let FileName = atob('ZWRnZXR1bm5lbA==');
-let BotToken;
-let ChatID;
+let BotToken; // Telegram 机器人 Token
+let ChatID;   // Telegram 聊天 ID
+let WXWorkWebhook; // 企业微信机器人 Webhook URL
 let proxyhosts = [];
 let proxyhostsURL = '';
 let RproxyIP = 'false';
@@ -58,6 +59,7 @@ export default {
 				const userIDs = await 生成动态UUID(动态UUID);
 				userID = userIDs[0];
 				userIDLow = userIDs[1];
+				userIDTime = userIDs[2];
 			}
 
 			if (!userID) {
@@ -120,6 +122,7 @@ export default {
 				remarkIndex = Number(env.CSVREMARK) || remarkIndex;
 				BotToken = env.TGTOKEN || BotToken;
 				ChatID = env.TGID || ChatID;
+				WXWorkWebhook = env.WXWORK_WEBHOOK || WXWorkWebhook;
 				FileName = env.SUBNAME || FileName;
 				subEmoji = env.SUBEMOJI || env.EMOJI || subEmoji;
 				if (subEmoji == '0') subEmoji = 'false';
@@ -1877,7 +1880,7 @@ async function sendMessage(type, ip, add_data = "") {
   }
 
   // 发送企业微信机器人通知
-  if (env.WXWORK_WEBHOOK) {
+  if (WXWorkWebhook) {
     try {
       let msg = "";
       const response = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`);
@@ -1888,8 +1891,7 @@ async function sendMessage(type, ip, add_data = "") {
         msg = `${type}\nIP: ${ip}\n${add_data}`;
       }
 
-      const webhookUrl = env.WXWORK_WEBHOOK;
-      await fetch(webhookUrl, {
+      await fetch(WXWorkWebhook, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -1908,16 +1910,11 @@ async function sendMessage(type, ip, add_data = "") {
 }
 
 function isValidIPv4(address) {
-  const ipv4Regex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-  return ipv4Regex.test(address);
-}
-
-function isValidIPv4(address) {
 	const ipv4Regex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
 	return ipv4Regex.test(address);
 }
 
-async function 生成动态UUID(密钥) {  // 注意添加了 async 关键字
+async function 生成动态UUID(密钥) {
   const 时区偏移 = 8; // 北京时间相对于UTC的时区偏移+8小时
   const 起始日期 = new Date(2007, 6, 7, 更新时间, 0, 0); // 固定起始日期为2007年7月7日的凌晨3点
   const 一周的毫秒数 = 1000 * 60 * 60 * 24 * 有效时间;
