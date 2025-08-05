@@ -1850,30 +1850,66 @@ async function 整理(内容) {
 }
 
 async function sendMessage(type, ip, add_data = "") {
-	if (!BotToken || !ChatID) return;
+  // 发送Telegram通知
+  if (BotToken && ChatID) {
+    try {
+      let msg = "";
+      const response = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`);
+      if (response.ok) {
+        const ipInfo = await response.json();
+        msg = `${type}\nIP: ${ip}\n国家: ${ipInfo.country}\n<tg-spoiler>城市: ${ipInfo.city}\n组织: ${ipInfo.org}\nASN: ${ipInfo.as}\n${add_data}`;
+      } else {
+        msg = `${type}\nIP: ${ip}\n<tg-spoiler>${add_data}`;
+      }
 
-	try {
-		let msg = "";
-		const response = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`);
-		if (response.ok) {
-			const ipInfo = await response.json();
-			msg = `${type}\nIP: ${ip}\n国家: ${ipInfo.country}\n<tg-spoiler>城市: ${ipInfo.city}\n组织: ${ipInfo.org}\nASN: ${ipInfo.as}\n${add_data}`;
-		} else {
-			msg = `${type}\nIP: ${ip}\n<tg-spoiler>${add_data}`;
-		}
+      const url = `https://api.telegram.org/bot${BotToken}/sendMessage?chat_id=${ChatID}&parse_mode=HTML&text=${encodeURIComponent(msg)}`;
+      await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/html,application/xhtml+xml,application/xml;',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'User-Agent': 'Mozilla/5.0 Chrome/90.0.4430.72'
+        }
+      });
+    } catch (error) {
+      console.error('Error sending Telegram message:', error);
+    }
+  }
 
-		const url = `https://api.telegram.org/bot${BotToken}/sendMessage?chat_id=${ChatID}&parse_mode=HTML&text=${encodeURIComponent(msg)}`;
-		return fetch(url, {
-			method: 'GET',
-			headers: {
-				'Accept': 'text/html,application/xhtml+xml,application/xml;',
-				'Accept-Encoding': 'gzip, deflate, br',
-				'User-Agent': 'Mozilla/5.0 Chrome/90.0.4430.72'
-			}
-		});
-	} catch (error) {
-		console.error('Error sending message:', error);
-	}
+  // 发送企业微信机器人通知
+  if (env.WXWORK_WEBHOOK) {
+    try {
+      let msg = "";
+      const response = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`);
+      if (response.ok) {
+        const ipInfo = await response.json();
+        msg = `${type}\nIP: ${ip}\n国家: ${ipInfo.country}\n城市: ${ipInfo.city}\n组织: ${ipInfo.org}\nASN: ${ipInfo.as}\n${add_data}`;
+      } else {
+        msg = `${type}\nIP: ${ip}\n${add_data}`;
+      }
+
+      const webhookUrl = env.WXWORK_WEBHOOK;
+      await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          msgtype: "text",
+          text: {
+            content: msg
+          }
+        })
+      });
+    } catch (error) {
+      console.error('Error sending WeCom message:', error);
+    }
+  }
+}
+
+function isValidIPv4(address) {
+  const ipv4Regex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+  return ipv4Regex.test(address);
 }
 
 function isValidIPv4(address) {
@@ -1881,39 +1917,40 @@ function isValidIPv4(address) {
 	return ipv4Regex.test(address);
 }
 
-function 生成动态UUID(密钥) {
-	const 时区偏移 = 8; // 北京时间相对于UTC的时区偏移+8小时
-	const 起始日期 = new Date(2007, 6, 7, 更新时间, 0, 0); // 固定起始日期为2007年7月7日的凌晨3点
-	const 一周的毫秒数 = 1000 * 60 * 60 * 24 * 有效时间;
+async function 生成动态UUID(密钥) {  // 注意添加了 async 关键字
+  const 时区偏移 = 8; // 北京时间相对于UTC的时区偏移+8小时
+  const 起始日期 = new Date(2007, 6, 7, 更新时间, 0, 0); // 固定起始日期为2007年7月7日的凌晨3点
+  const 一周的毫秒数 = 1000 * 60 * 60 * 24 * 有效时间;
 
-	function 获取当前周数() {
-		const 现在 = new Date();
-		const 调整后的现在 = new Date(现在.getTime() + 时区偏移 * 60 * 60 * 1000);
-		const 时间差 = Number(调整后的现在) - Number(起始日期);
-		return Math.ceil(时间差 / 一周的毫秒数);
-	}
+  function 获取当前周数() {
+    const 现在 = new Date();
+    const 调整后的现在 = new Date(现在.getTime() + 时区偏移 * 60 * 60 * 1000);
+    const 时间差 = Number(调整后的现在) - Number(起始日期);
+    return Math.ceil(时间差 / 一周的毫秒数);
+  }
 
-	function 生成UUID(基础字符串) {
-		const 哈希缓冲区 = new TextEncoder().encode(基础字符串);
-		return crypto.subtle.digest('SHA-256', 哈希缓冲区).then((哈希) => {
-			const 哈希数组 = Array.from(new Uint8Array(哈希));
-			const 十六进制哈希 = 哈希数组.map(b => b.toString(16).padStart(2, '0')).join('');
-			return `${十六进制哈希.substr(0, 8)}-${十六进制哈希.substr(8, 4)}-4${十六进制哈希.substr(13, 3)}-${(parseInt(十六进制哈希.substr(16, 2), 16) & 0x3f | 0x80).toString(16)}${十六进制哈希.substr(18, 2)}-${十六进制哈希.substr(20, 12)}`;
-		});
-	}
+  async function 生成UUID(基础字符串) {
+    const 哈希缓冲区 = new TextEncoder().encode(基础字符串);
+    const 哈希 = await crypto.subtle.digest('SHA-256', 哈希缓冲区);
+    const 哈希数组 = Array.from(new Uint8Array(哈希));
+    const 十六进制哈希 = 哈希数组.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    // 标准UUIDv4格式
+    return `${十六进制哈希.substr(0, 8)}-${十六进制哈希.substr(8, 4)}-4${十六进制哈希.substr(13, 3)}-${(parseInt(十六进制哈希.substr(16, 2), 16) & 0x3f | 0x80).toString(16)}${十六进制哈希.substr(18, 2)}-${十六进制哈希.substr(20, 12)}`;
+  }
 
-	const 当前周数 = 获取当前周数(); // 获取当前周数
-	const 结束时间 = new Date(起始日期.getTime() + 当前周数 * 一周的毫秒数);
+  const 当前周数 = 获取当前周数(); // 获取当前周数
+  const 结束时间 = new Date(起始日期.getTime() + 当前周数 * 一周的毫秒数);
 
-	// 生成两个 UUID
-	const 当前UUIDPromise = 生成UUID(密钥 + 当前周数);
-	const 上一个UUIDPromise = 生成UUID(密钥 + (当前周数 - 1));
+  // 生成两个 UUID
+  const 当前UUID = await 生成UUID(密钥 + 当前周数);
+  const 上一个UUID = await 生成UUID(密钥 + (当前周数 - 1));
 
-	// 格式化到期时间
-	const 到期时间UTC = new Date(结束时间.getTime() - 时区偏移 * 60 * 60 * 1000); // UTC时间
-	const 到期时间字符串 = `到期时间(UTC): ${到期时间UTC.toISOString().slice(0, 19).replace('T', ' ')} (UTC+8): ${结束时间.toISOString().slice(0, 19).replace('T', ' ')}\n`;
+  // 格式化到期时间
+  const 到期时间UTC = new Date(结束时间.getTime() - 时区偏移 * 60 * 60 * 1000); // UTC时间
+  const 到期时间字符串 = `到期时间(UTC): ${到期时间UTC.toISOString().slice(0, 19).replace('T', ' ')} (UTC+8): ${结束时间.toISOString().slice(0, 19).replace('T', ' ')}\n`;
 
-	return Promise.all([当前UUIDPromise, 上一个UUIDPromise, 到期时间字符串]);
+  return [当前UUID, 上一个UUID, 到期时间字符串];
 }
 
 async function 迁移地址列表(env, txt = 'ADD.txt') {
