@@ -32,6 +32,7 @@ let remarkIndex = 1;//CSV备注所在列偏移量
 let FileName = atob('ZWRnZXR1bm5lbA==');
 let BotToken;
 let ChatID;
+let WxKey;// 企业微信机器人只需要
 let proxyhosts = [];
 let proxyhostsURL = '';
 let RproxyIP = 'false';
@@ -51,15 +52,15 @@ export default {
 			const UA = request.headers.get('User-Agent') || 'null';
 			const userAgent = UA.toLowerCase();
 			userID = env.UUID || env.uuid || env.PASSWORD || env.pswd || userID;
-			// 修复后的代码（替换原条件判断部分）
-			if (env.KEY || env.TOKEN || userID) {  // 移除对userID是否为UUID的判断
-    		 动态UUID = env.KEY || env.TOKEN || userID;  // 确保动态UUID始终有值
-    		 有效时间 = Number(env.TIME) || 有效时间;
-    		 更新时间 = Number(env.UPTIME) || 更新时间;
-    		 const userIDs = await 生成动态UUID(动态UUID);
-    		 userID = userIDs[0];
-    		 userIDLow = userIDs[1];
-}
+			// 修改后的代码
+            if (env.KEY || env.TOKEN || userID) {  // 去掉了!isValidUUID(userID)的判断
+            动态UUID = env.KEY || env.TOKEN || userID;
+            有效时间 = Number(env.TIME) || 有效时间;
+            更新时间 = Number(env.UPTIME) || 更新时间;
+            const userIDs = await 生成动态UUID(动态UUID);
+            userID = userIDs[0];
+            userIDLow = userIDs[1];
+            }
 
 			if (!userID) {
 				return new Response('请设置你的UUID变量，或尝试重试部署，检查变量是否生效？', {
@@ -121,6 +122,7 @@ export default {
 				remarkIndex = Number(env.CSVREMARK) || remarkIndex;
 				BotToken = env.TGTOKEN || BotToken;
 				ChatID = env.TGID || ChatID;
+				WxKey = env.WX_KEY || env.wx_key || WxKey;
 				FileName = env.SUBNAME || FileName;
 				subEmoji = env.SUBEMOJI || env.EMOJI || subEmoji;
 				if (subEmoji == '0') subEmoji = 'false';
@@ -1851,30 +1853,64 @@ async function 整理(内容) {
 }
 
 async function sendMessage(type, ip, add_data = "") {
-	if (!BotToken || !ChatID) return;
+    try {
+        // 统一获取IP信息
+        let ipInfo = null;
+        const response = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`);
+        if (response.ok) {
+            ipInfo = await response.json();
+        }
 
-	try {
-		let msg = "";
-		const response = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`);
-		if (response.ok) {
-			const ipInfo = await response.json();
-			msg = `${type}\nIP: ${ip}\n国家: ${ipInfo.country}\n<tg-spoiler>城市: ${ipInfo.city}\n组织: ${ipInfo.org}\nASN: ${ipInfo.as}\n${add_data}`;
-		} else {
-			msg = `${type}\nIP: ${ip}\n<tg-spoiler>${add_data}`;
-		}
+        // 处理Telegram通知（保留原有 spoiler标签）
+        if (BotToken && ChatID) {
+            let tgMsg = "";
+            if (ipInfo) {
+                tgMsg = `${type}\nIP: ${ip}\n国家: ${ipInfo.country}\n<tg-spoiler>城市: ${ipInfo.city}\n组织: ${ipInfo.org}\nASN: ${ipInfo.as}\n${add_data}`;
+            } else {
+                tgMsg = `${type}\nIP: ${ip}\n<tg-spoiler>${add_data}`;
+            }
 
-		const url = `https://api.telegram.org/bot${BotToken}/sendMessage?chat_id=${ChatID}&parse_mode=HTML&text=${encodeURIComponent(msg)}`;
-		return fetch(url, {
-			method: 'GET',
-			headers: {
-				'Accept': 'text/html,application/xhtml+xml,application/xml;',
-				'Accept-Encoding': 'gzip, deflate, br',
-				'User-Agent': 'Mozilla/5.0 Chrome/90.0.4430.72'
-			}
-		});
-	} catch (error) {
-		console.error('Error sending message:', error);
-	}
+            const tgUrl = `https://api.telegram.org/bot${BotToken}/sendMessage?chat_id=${ChatID}&parse_mode=HTML&text=${encodeURIComponent(tgMsg)}`;
+            await fetch(tgUrl, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'User-Agent': 'Mozilla/5.0 Chrome/90.0.4430.72'
+                }
+            });
+        }
+
+        // 处理企业微信通知（移除所有tg-spoiler标签和多余分割线）
+        if (WxKey) {
+            let wxMsg = "";
+            // 清理add_data中的tg-spoiler标签
+            const cleanAddData = add_data.replace(/<\/?tg-spoiler>/g, '').trim();
+            
+            if (ipInfo) {
+                wxMsg = `${type}\nIP: ${ip}\n国家: ${ipInfo.country}\n城市: ${ipInfo.city}\n组织: ${ipInfo.org}\nASN: ${ipInfo.as}\n${cleanAddData}`;
+            } else {
+                wxMsg = `${type}\nIP: ${ip}\n${cleanAddData}`;
+            }
+
+            const wxUrl = `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${WxKey}`;
+            await fetch(wxUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 Chrome/90.0.4430.72'
+                },
+                body: JSON.stringify({
+                    msgtype: "text",
+                    text: {
+                        content: wxMsg
+                    }
+                })
+            });
+        }
+    } catch (error) {
+        console.error('通知发送错误:', error);
+    }
 }
 
 function isValidIPv4(address) {
